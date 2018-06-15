@@ -22,8 +22,6 @@ import datetime as dt
 from hamster.lib import Fact
 
 class Storage(object):
-    def run_fixtures(self):
-        pass
 
     # signals that are called upon changes
     def tags_changed(self): pass
@@ -35,11 +33,10 @@ class Storage(object):
         self.facts_changed()
         self.activities_changed()
 
-
     # facts
-    def add_fact(self, fact, start_time, end_time, temporary = False):
-        fact = Fact(fact, start_time = start_time, end_time = end_time)
-        start_time = fact.start_time or dt.datetime.now().replace(second = 0, microsecond = 0)
+    def add_fact(self, fact, start_time, end_time, temporary=False):
+        fact = Fact(fact, start_time=start_time, end_time=end_time)
+        start_time = fact.start_time or dt.datetime.now().replace(second=0, microsecond=0)
 
         self.start_transaction()
         result = self.__add_fact(fact.serialized_name(), start_time, end_time, temporary)

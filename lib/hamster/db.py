@@ -1,24 +1,3 @@
-# - coding: utf-8 -
-
-# Copyright (C) 2007-2009, 2012, 2014 Toms Bauģis <toms.baugis at gmail.com>
-# Copyright (C) 2007 Patryk Zawadzki <patrys at pld-linux.org>
-
-# This file is part of Project Hamster.
-
-# Project Hamster is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-
-# Project Hamster is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-# You should have received a copy of the GNU General Public License
-# along with Project Hamster.  If not, see <http://www.gnu.org/licenses/>.
-
-
 """separate file for database operations"""
 import logging
 
@@ -32,20 +11,13 @@ except ImportError:
         logging.error("Neither sqlite3 nor pysqlite2 found")
         raise
 
-import os, time
+import os
 import datetime
-import storage
+from lib.hamster import storage
 from shutil import copy as copyfile
 import itertools
-import datetime as dt
-try:
-    from gi.repository import Gio as gio
-except ImportError:
-    print "Could not import gio - requires pygobject. File monitoring will be disabled"
-    gio = None
 
 from hamster.lib import Fact
-from hamster.lib import trophies
 
 class Storage(storage.Storage):
     con = None # Connection will be created on demand
@@ -62,39 +34,7 @@ class Storage(storage.Storage):
         self.__cur = None
         self.__last_etag = None
 
-
         self.db_path = self.__init_db_file(database_dir)
-
-        if gio:
-            # add file monitoring so the app does not have to be restarted
-            # when db file is rewritten
-            def on_db_file_change(monitor, gio_file, event_uri, event):
-                if event == gio.FileMonitorEvent.CHANGES_DONE_HINT:
-                    if gio_file.query_info(gio.FILE_ATTRIBUTE_ETAG_VALUE,
-                                           gio.FileQueryInfoFlags.NONE,
-                                           None).get_etag() == self.__last_etag:
-                        # ours
-                        return
-                elif event == gio.FileMonitorEvent.CREATED:
-                    # treat case when instead of a move, a remove and create has been performed
-                    self.con = None
-
-                if event in (gio.FileMonitorEvent.CHANGES_DONE_HINT, gio.FileMonitorEvent.CREATED):
-                    print "DB file has been modified externally. Calling all stations"
-                    self.dispatch_overwrite()
-
-                    # plan "b" – synchronize the time tracker's database from external source while the tracker is running
-                    if trophies:
-                        trophies.unlock("plan_b")
-
-
-            self.__database_file = gio.File.new_for_path(self.db_path)
-            self.__db_monitor = self.__database_file.monitor_file(gio.FileMonitorFlags.WATCH_MOUNTS | \
-                                                                  gio.FileMonitorFlags.SEND_MOVED,
-                                                                  None)
-            self.__db_monitor.connect("changed", on_db_file_change)
-
-        self.run_fixtures()
 
     def __init_db_file(self, database_dir):
         if not database_dir:
@@ -102,11 +42,11 @@ class Storage(storage.Storage):
                 from xdg.BaseDirectory import xdg_data_home
                 database_dir = os.path.realpath(os.path.join(xdg_data_home, "hamster-applet"))
             except ImportError:
-                print "Could not import xdg - will store hamster.db in home folder"
+                print("Could not import xdg - will store hamster.db in home folder")
                 database_dir = os.path.realpath(os.path.expanduser("~"))
 
         if not os.path.exists(database_dir):
-            os.makedirs(database_dir, 0744)
+            os.makedirs(database_dir, 0o0744)
 
         # handle the move to xdg_data_home
         old_db_file = os.path.expanduser("~/.gnome2/hamster-applet/hamster.db")
@@ -140,18 +80,9 @@ class Storage(storage.Storage):
             copyfile(os.path.join(data_dir, 'hamster.db'), db_path)
 
             #change also permissions - sometimes they are 444
-            os.chmod(db_path, 0664)
+            os.chmod(db_path, 0o0664)
 
         return db_path
-
-
-    def register_modification(self):
-        if gio:
-            # db.execute calls this so we know that we were the ones
-            # that modified the DB and no extra refesh is not needed
-            self.__last_etag = self.__database_file.query_info(gio.FILE_ATTRIBUTE_ETAG_VALUE,
-                                                               gio.FileQueryInfoFlags.NONE,
-                                                               None).get_etag()
 
     #tags, here we come!
     def __get_tags(self, only_autocomplete = False):
@@ -401,7 +332,7 @@ class Storage(storage.Storage):
 
 
     def __touch_fact(self, fact, end_time = None):
-        end_time = end_time or dt.datetime.now()
+        end_time = end_time or datetime.datetime.now()
         # tasks under one minute do not count
         if end_time - fact['start_time'] < datetime.timedelta(minutes = 1):
             self.__remove_fact(fact['id'])
@@ -433,9 +364,9 @@ class Storage(storage.Storage):
                     LIMIT 1
                 """
         fact = self.fetchone(query, (start_time, start_time,
-                                     start_time - dt.timedelta(hours = 12),
+                                     start_time - datetime.timedelta(hours = 12),
                                      start_time, start_time,
-                                     start_time + dt.timedelta(hours = 12)))
+                                     start_time + datetime.timedelta(hours = 12)))
         end_time = None
         if fact:
             if start_time > fact["start_time"]:
@@ -503,8 +434,6 @@ class Storage(storage.Storage):
                                       WHERE fact_id = ?"""
                 self.execute(tag_update, (new_fact_id, fact["id"])) #clone tags
 
-                if trophies:
-                    trophies.unlock("split")
 
             # overlap start
             elif start_time < fact["start_time"] < end_time:
@@ -541,8 +470,6 @@ class Storage(storage.Storage):
             if not category_id:
                 category_id = self.__add_category(fact.category)
 
-                if trophies:
-                    trophies.unlock("no_hands")
 
         # try to find activity, resurrect if not temporary
         activity_id = self.__get_activity_by_name(fact.activity,
@@ -555,7 +482,7 @@ class Storage(storage.Storage):
             activity_id = activity_id['id']
 
         # if we are working on +/- current day - check the last_activity
-        if (dt.timedelta(days=-1) <= dt.datetime.now() - start_time <= dt.timedelta(days=1)):
+        if (datetime.timedelta(days=-1) <= datetime.datetime.now() - start_time <= datetime.timedelta(days=1)):
             # pull in previous facts
             facts = self.__get_todays_facts()
 
@@ -636,8 +563,8 @@ class Storage(storage.Storage):
             day_start = conf.get("day_start_minutes")
         except:
             day_start = 5 * 60 # default day start to 5am
-        day_start = dt.time(day_start / 60, day_start % 60)
-        today = (dt.datetime.now() - dt.timedelta(hours = day_start.hour,
+        day_start = datetime.time(day_start / 60, day_start % 60)
+        today = (datetime.datetime.now() - datetime.timedelta(hours = day_start.hour,
                                                   minutes = day_start.minute)).date()
         return self.__get_facts(today)
 
@@ -648,13 +575,14 @@ class Storage(storage.Storage):
             day_start = conf.get("day_start_minutes")
         except:
             day_start = 5 * 60 # default day start to 5am
-        day_start = dt.time(day_start / 60, day_start % 60)
+
+        day_start = datetime.time(int(day_start / 60), day_start % 60)
 
         split_time = day_start
-        datetime_from = dt.datetime.combine(date, split_time)
+        datetime_from = datetime.datetime.combine(date, split_time)
 
         end_date = end_date or date
-        datetime_to = dt.datetime.combine(end_date, split_time) + dt.timedelta(days = 1)
+        datetime_to = datetime.datetime.combine(end_date, split_time) + datetime.timedelta(days = 1)
 
         query = """
                    SELECT a.id AS id,
@@ -704,21 +632,21 @@ class Storage(storage.Storage):
             # or current time if fact has happened in last 12 hours
             if fact["end_time"]:
                 fact_end_time = fact["end_time"]
-            elif (dt.datetime.now().date() == fact["start_time"].date()) or \
-                 (dt.datetime.now() - fact["start_time"]) <= dt.timedelta(hours=12):
-                fact_end_time = dt.datetime.now().replace(microsecond = 0)
+            elif (datetime.datetime.now().date() == fact["start_time"].date()) or \
+                 (datetime.datetime.now() - fact["start_time"]) <= datetime.timedelta(hours=12):
+                fact_end_time = datetime.datetime.now().replace(microsecond = 0)
             else:
                 fact_end_time = fact["start_time"]
 
             fact_start_date = fact["start_time"].date() \
-                - dt.timedelta(1 if fact["start_time"].time() < split_time else 0)
+                - datetime.timedelta(1 if fact["start_time"].time() < split_time else 0)
             fact_end_date = fact_end_time.date() \
-                - dt.timedelta(1 if fact_end_time.time() < split_time else 0)
+                - datetime.timedelta(1 if fact_end_time.time() < split_time else 0)
             fact_date_span = fact_end_date - fact_start_date
 
             # check if the task spans across two dates
             if fact_date_span.days == 1:
-                datetime_split = dt.datetime.combine(fact_end_date, split_time)
+                datetime_split = datetime.datetime.combine(fact_end_date, split_time)
                 start_date_duration = datetime_split - fact["start_time"]
                 end_date_duration = fact_end_time - datetime_split
                 if start_date_duration > end_date_duration:
@@ -731,7 +659,8 @@ class Storage(storage.Storage):
                 # (in which case we give up)
                 fact_date = fact_start_date
 
-            if fact_date < date or fact_date > end_date:
+            fact_datetime = datetime.datetime.combine(fact_date, datetime.datetime.min.time())
+            if fact_datetime < date or fact_datetime > end_date:
                 # due to spanning we've jumped outside of given period
                 continue
 
@@ -797,9 +726,6 @@ class Storage(storage.Storage):
         else:
             self.execute("delete from activities where id = ?", (id,))
 
-        # Finished! - deleted an activity with more than 50 facts on it
-        if trophies and bound_facts >= 50:
-            trophies.unlock("finished")
 
     def __remove_category(self, id):
         """move all activities to unsorted and remove category"""
@@ -963,46 +889,3 @@ class Storage(storage.Storage):
         self.__con.commit()
         self.__cur.close()
         self.__con, self.__cur = None, None
-        self.register_modification()
-
-    def run_fixtures(self):
-        self.start_transaction()
-
-        """upgrade DB to hamster version"""
-        version = self.fetchone("SELECT version FROM version")["version"]
-        current_version = 9
-
-        if version < 8:
-            # working around sqlite's utf-f case sensitivity (bug 624438)
-            # more info: http://www.gsak.net/help/hs23820.htm
-            self.execute("ALTER TABLE activities ADD COLUMN search_name varchar2")
-
-            activities = self.fetchall("select * from activities")
-            statement = "update activities set search_name = ? where id = ?"
-            for activity in activities:
-                self.execute(statement, (activity['name'].lower(), activity['id']))
-
-            # same for categories
-            self.execute("ALTER TABLE categories ADD COLUMN search_name varchar2")
-            categories = self.fetchall("select * from categories")
-            statement = "update categories set search_name = ? where id = ?"
-            for category in categories:
-                self.execute(statement, (category['name'].lower(), category['id']))
-
-        if version < 9:
-            # adding full text search
-            self.execute("""CREATE VIRTUAL TABLE fact_index
-                                           USING fts3(id, name, category, description, tag)""")
-
-
-        # at the happy end, update version number
-        if version < current_version:
-            #lock down current version
-            self.execute("UPDATE version SET version = %d" % current_version)
-            print "updated database from version %d to %d" % (version, current_version)
-
-            # oldtimer – database version structure had been performed on startup (thus we know that user has been on at least 2 versions)
-            if trophies:
-                trophies.unlock("oldtimer")
-
-        self.end_transaction()

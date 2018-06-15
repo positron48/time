@@ -1,0 +1,23 @@
+.task{
+    display: flex;
+}
+.task .start, .task .end{
+    width: 90px;
+}
+.task .delta{
+    width: 50px;
+}
+.task .category{
+    width: 150px;
+}
+.task .name{
+    width: calc(100% - 260px);
+}
+.task span.badge{
+    font-weight: 300;
+    font-size: 0.8rem;
+    color: #fff;
+    background-color: #26a69a;
+    border-radius: 2px;
+    float: right;
+}
