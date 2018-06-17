@@ -7,6 +7,25 @@
             $('#datepicker').datepicker({})
         </script>
 
+        <form action="{{ url_for('add_entry') }}" method=post class=add-entry>
+            <dl>
+                <dd><input type=text size=50 name=name>
+                <dd><input type=submit value=Submit>
+            </dl>
+        </form>
+
+        <div class="row">
+            <table id="tasks">
+
+            </table>
+        </div>
+
+        <div class="row" id="totals">
+
+        </div>
+
+
+
         <div class="chart">
             <canvas id="myChart" width="1280" height="200"></canvas>
             <script>
@@ -52,20 +71,6 @@
                 });
             </script>
         </div>
-
-        <div class="row">
-            <table id="tasks">
-
-            </table>
-        </div>
-
-        <form action="{{ url_for('add_entry') }}" method=post class=add-entry>
-            <dl>
-                <dt>Title:
-                <dd><input type=text size=50 name=name>
-                <dd><input type=submit value=Submit>
-            </dl>
-        </form>
 
     {% endif %}
 {% endblock %}

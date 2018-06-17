@@ -21,3 +21,9 @@
     border-radius: 2px;
     float: right;
 }
+.date{
+    font-weight: bold;
+}
+#totals table tr td{
+    width: 50%;
+}
