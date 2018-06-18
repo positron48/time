@@ -19,7 +19,7 @@
 # along with Project Hamster.  If not, see <http://www.gnu.org/licenses/>.
 
 import datetime as dt
-from hamster.lib import Fact
+from lib.hamster import Fact
 
 class Storage(object):
 
