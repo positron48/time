@@ -17,7 +17,7 @@ from lib.hamster import storage
 from shutil import copy as copyfile
 import itertools
 
-from hamster.lib import Fact
+from lib.hamster import Fact
 
 class Storage(storage.Storage):
     con = None # Connection will be created on demand
